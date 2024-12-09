@@ -6,8 +6,8 @@
 
 #define WIDTH 400
 #define HEIGHT 400
-#define ROWS 10
-#define COLS 10
+#define ROWS 40
+#define COLS 40
 #define RADIUS 5
 #define FPS 60
 #define ACTIVE_COLOR MAGENTA
@@ -46,39 +46,52 @@ void shuffle_fy(int *ns, int ns_size) {
 }
 
 typedef struct CellMat {
-  Image *imgs;
+  Texture *texs;
   int count;
   int rows;
   int cols;
+  int width;
+  int height;
 } CellMat;
 
 CellMat* create_cell_mat(Image src, int rows, int cols) {
   int cell_width = (int) (src.width / cols);
   int cell_height = (int) (src.height/ rows);
   int cell_count = rows * cols;
-  Image *cells = malloc(cell_count * sizeof(Image));
-  for (int row = 0; row < rows; ++row) {
-    for (int col = 0; col < cols; ++col) {
-      Rectangle cell_bounds = {
-	(float) col * cell_width,
-	(float) row * cell_height,
-	(float) cell_width,
-	(float) cell_height,
-      };
-      cells[(row * COLS) + col] = ImageFromImage(src, cell_bounds);
-    }
+  Texture *texs = malloc(cell_count * sizeof(Texture));
+  if (!texs) {
+    printf("Couldn't allocate memory for textures");
+    return NULL;
+  }
+
+  for (int i = 0; i < cell_count; ++i) {
+    int row = i / cols;
+    int col = i % cols;
+    Rectangle cell_bounds = {
+      .x = (float) col * cell_width,
+      .y = (float) row * cell_height,
+      .width = (float) cell_width,
+      .height = (float) cell_height,
+    };
+    texs[i] = LoadTextureFromImage(ImageFromImage(src, cell_bounds));
   }
 
   CellMat *mat = malloc(sizeof(CellMat));
-  mat->imgs = cells;
+  if (!mat) {
+    printf("Couldn't allocate memory for CelMat");
+    return NULL;
+  }
+  mat->texs = texs;
   mat->count = cell_count;
   mat->rows = rows;
   mat->cols = cols;
+  mat->width = cell_width;
+  mat->height = cell_height;
   return mat;
 }
 
 void free_cell_mat(CellMat *mat) {
-  free(mat->imgs);
+  free(mat->texs);
   free(mat);
 }
 
@@ -159,19 +172,18 @@ void bubble_sort_step(SortStep *step) {
 
 void render_cell_mat(CellMat *mat, SortStep *step) {
   for (int i = 0; i < mat->count; ++i) {
-    Image img = mat->imgs[step->ns[i]];
+    Texture t = mat->texs[step->ns[i]];
     int row = i / mat->rows;
     int col = i % mat->cols;
-    Texture2D t = LoadTextureFromImage(img);
-    DrawTexture(t, col * img.width, row * img.height, step->highlights[i]);
+    DrawTexture(t, col * mat->width, row * mat->height, step->highlights[i]);
   }
 }
 
 int main(void) {
+  InitWindow(WIDTH, HEIGHT, "Bubble Sort!");
   Image src_img = (color_gradient_image(DARKBLUE, RED));
   CellMat *mat = create_cell_mat(src_img, ROWS, COLS);
   SortStep *step = create_sort_step(ROWS * COLS);
-  InitWindow(WIDTH, HEIGHT, "Hello Raylib!");
   SetTargetFPS(FPS);
   SetTraceLogLevel(LOG_ALL);
   while (!WindowShouldClose()) {
@@ -181,8 +193,8 @@ int main(void) {
     bubble_sort_step(step);
     EndDrawing();
   }
+  CloseWindow();
   free_cell_mat(mat);
   free_sort_step(step);
-  CloseWindow();
   return 0;
 }
