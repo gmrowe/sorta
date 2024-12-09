@@ -42,12 +42,8 @@ void shuffle_fy(int *ns, int ns_size) {
   }
 }
 
-typedef struct Cell {
-  Image img;
-} Cell;
-
 typedef struct CellMat {
-  Cell *cells;
+  Image *imgs;
   int count;
   int *ordering;
   int rows;
@@ -56,11 +52,10 @@ typedef struct CellMat {
 
 void render_cell_mat(CellMat *mat) {
   for (int i = 0; i < mat->count; ++i) {
-    Cell cell = mat->cells[mat->ordering[i]];
-    Image img = cell.img;
+    Image img = mat->imgs[mat->ordering[i]];
     int row = i / mat->rows;
     int col = i % mat->cols;
-    Texture2D t = LoadTextureFromImage(cell.img);
+    Texture2D t = LoadTextureFromImage(img);
     DrawTexture(t, col * img.width, row * img.height, WHITE);
   }
 }
@@ -69,25 +64,23 @@ CellMat* create_cell_mat(Image src, int rows, int cols) {
   int cell_width = (int) (src.width / cols);
   int cell_height = (int) (src.height/ rows);
   int cell_count = rows * cols;
-  Cell *cells = (Cell *)malloc(cell_count * sizeof(Cell));
+  Image *cells = malloc(cell_count * sizeof(Image));
   for (int row = 0; row < rows; ++row) {
     for (int col = 0; col < cols; ++col) {
       Rectangle cell_bounds = {
 	(float) col * cell_width,
-	(float)row * cell_height,
+	(float) row * cell_height,
 	(float) cell_width,
 	(float) cell_height,
       };
-      cells[(row * COLS) + col] = (Cell) {
-	.img = ImageFromImage(src, cell_bounds),
-      };
+      cells[(row * COLS) + col] = ImageFromImage(src, cell_bounds);
     }
   }
 
   int *order = malloc(cell_count * sizeof(int));
   for (int i = 0; i < cell_count; ++i) order[i] = i;
   CellMat *mat = malloc(sizeof(CellMat));
-  mat->cells = cells;
+  mat->imgs = cells;
   mat->count = cell_count;
   mat->ordering = order;
   mat->rows = rows;
@@ -96,7 +89,7 @@ CellMat* create_cell_mat(Image src, int rows, int cols) {
 }
 
 void free_cell_mat(CellMat *mat) {
-  free(mat->cells);
+  free(mat->imgs);
   free(mat->ordering);
   free(mat);
 }
@@ -113,6 +106,7 @@ int main(void) {
   CellMat *mat = create_cell_mat(src_img, ROWS, COLS);
   InitWindow(WIDTH, HEIGHT, "Hello Raylib!");
   SetTargetFPS(FPS);
+  SetTraceLogLevel(LOG_WARNING);
   while (!WindowShouldClose()) {
     BeginDrawing();
     ClearBackground(WHITE);
