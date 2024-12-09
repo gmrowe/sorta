@@ -2,7 +2,7 @@
 
 SRC="main.c"
 OUT="sorta"
-CFLAGS="-Iraylib/build/raylib/include -Lraylib/build/raylib -lraylib -lm"
+CFLAGS="-Wall -Wextra -Iraylib/build/raylib/include -Lraylib/build/raylib -lraylib -lm"
 
 # Build the executable
 clang $SRC -o $OUT $CFLAGS

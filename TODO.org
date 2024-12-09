@@ -1,0 +1,43 @@
+* Sorting Visualization Project Checklist
+** Setup Phase
+- [X] Ensure Raylib is installed and integrated with your build system.
+- [X] Verify a basic Raylib program compiles and runs correctly.
+- [X] Create a Raylib program that opens a window and fills the screen with a single color.
+- [X] Verify the rendering loop works as expected.
+
+** Image Preparation
+- [X] Decide between generating a gradient image in a pixel buffer or loading an image from storage.
+      Note: For intial implementation we are using a gradient image
+- [X] Implement and test the chosen approach.
+- [ ] Use `ImageFromImage` to extract subimages (blocks) of fixed dimensions (e.g., 10x10 pixels).
+- [ ] Store the blocks in a suitable structure, associating each with an index.
+
+** Index Array Management
+- [ ] Allocate an integer array representing the indices of the blocks.
+- [ ] Ensure the size matches the number of blocks.
+- [ ] Implement and test a shuffling algorithm (e.g., Fisher-Yates).
+- [ ] Verify that the blocks are displayed in their shuffled order.
+
+** Sorting Animation
+- [ ] Implement a stepwise sorting algorithm (e.g., bubble sort, insertion sort) that operates on the index array.
+- [ ] After each step, update the image on-screen by redrawing the blocks in their new order.
+- [ ] Add a delay or frame timing mechanism to slow down sorting for better visualization.
+- [ ] Allow the animation speed to be adjusted dynamically.
+
+** Polish
+- [ ] Smoothly transition block colors between two extremes (Color-A and Color-B) based on their position in the UV gradient.
+- [ ] Allow the user to restart the sorting visualization with a new shuffle.
+- [ ] Optionally, let the user select the sorting algorithm (e.g., bubble sort vs. quicksort).
+- [ ] Explore optimizations like using a single texture for the whole image or batching draw calls to improve performance.
+- [ ] Ensure the program handles edge cases (e.g., very large images, odd block sizes).
+- [ ] Test on different platforms (Linux, macOS, etc.).
+
+** Stretch Goals
+- [ ] Allow block sizes to be configured dynamically.
+- [ ] Experiment with non-square blocks for interesting visual effects.
+- [ ] Play sound effects or music synchronized to sorting steps.
+- [ ] Capture the visualization as a series of frames or a GIF for sharing.
+
+** Iterative Testing Plan
+- [ ] After implementing each step, run the program to verify the changes work as expected.
+- [ ] Use `printf` debugging or Raylib’s built-in debug tools (e.g., `DrawText`) to inspect intermediate states.
