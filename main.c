@@ -2,13 +2,16 @@
 #include <raylib.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #define WIDTH 400
 #define HEIGHT 400
-#define ROWS 40
-#define COLS 40
+#define ROWS 10
+#define COLS 10
 #define RADIUS 5
-#define FPS 30
+#define FPS 60
+#define ACTIVE_COLOR MAGENTA
+#define SWAP_COLOR DARKGREEN
 
 Image color_gradient_image(Color a, Color b) {
   uint32_t init[WIDTH * HEIGHT] = {0};
@@ -45,20 +48,9 @@ void shuffle_fy(int *ns, int ns_size) {
 typedef struct CellMat {
   Image *imgs;
   int count;
-  int *ordering;
   int rows;
   int cols;
 } CellMat;
-
-void render_cell_mat(CellMat *mat) {
-  for (int i = 0; i < mat->count; ++i) {
-    Image img = mat->imgs[mat->ordering[i]];
-    int row = i / mat->rows;
-    int col = i % mat->cols;
-    Texture2D t = LoadTextureFromImage(img);
-    DrawTexture(t, col * img.width, row * img.height, WHITE);
-  }
-}
 
 CellMat* create_cell_mat(Image src, int rows, int cols) {
   int cell_width = (int) (src.width / cols);
@@ -77,12 +69,9 @@ CellMat* create_cell_mat(Image src, int rows, int cols) {
     }
   }
 
-  int *order = malloc(cell_count * sizeof(int));
-  for (int i = 0; i < cell_count; ++i) order[i] = i;
   CellMat *mat = malloc(sizeof(CellMat));
   mat->imgs = cells;
   mat->count = cell_count;
-  mat->ordering = order;
   mat->rows = rows;
   mat->cols = cols;
   return mat;
@@ -90,7 +79,6 @@ CellMat* create_cell_mat(Image src, int rows, int cols) {
 
 void free_cell_mat(CellMat *mat) {
   free(mat->imgs);
-  free(mat->ordering);
   free(mat);
 }
 
@@ -101,19 +89,100 @@ void dump_array(int *ns, int ns_size) {
   }
 }
 
+typedef struct SortStep {
+  int *ns;
+  int count;
+  int is_sorted;
+  int active_index;
+  int updated;
+  Color *highlights;
+} SortStep;
+
+void reset_colors(Color *colors, int color_count, Color color) {
+  for (int i = 0; i < color_count; i++) {
+    colors[i] = color;
+  }
+}
+
+SortStep* create_sort_step(int count) {
+  int *order = malloc(count * sizeof(int));
+  for (int i = 0; i < count; ++i) order[i] = i;
+  shuffle_fy(order, count);
+  Color *highlights = malloc(count * sizeof(Color));
+  reset_colors(highlights, count, WHITE);
+  SortStep *step = malloc(sizeof(SortStep));
+  step->ns = order;
+  step->count = count;
+  step->is_sorted = false;
+  step->active_index = 0;
+  step->updated = false;
+  step->highlights = highlights;
+  return step;
+}
+
+void free_sort_step(SortStep *step) {
+  free(step->highlights);
+  free(step->ns);
+  free(step);
+}
+
+void bubble_sort_step(SortStep *step) {
+  reset_colors(step->highlights, step->count, WHITE);
+  if (step->is_sorted) {
+    return;
+  }
+  int idx = step->active_index;
+  step->highlights[idx] = ACTIVE_COLOR;
+
+  // End of array behavior
+  if (idx == step->count - 1) {
+    if (step->updated) {
+      step->active_index = 0;
+      step->updated = false;
+    } else {
+      step->is_sorted = true;
+    }
+    return;
+  }
+
+  // Check wheter current element is out of order
+  if (step->ns[idx] > step->ns[idx + 1]) {
+    int temp = step->ns[idx];
+    step->ns[idx] = step->ns[idx + 1];
+    step->ns[idx + 1] = temp;
+    step->updated = true;
+    step->highlights[idx] = SWAP_COLOR;
+    step->highlights[idx + 1] = SWAP_COLOR;
+  }
+  step->active_index = idx + 1;
+}
+
+void render_cell_mat(CellMat *mat, SortStep *step) {
+  for (int i = 0; i < mat->count; ++i) {
+    Image img = mat->imgs[step->ns[i]];
+    int row = i / mat->rows;
+    int col = i % mat->cols;
+    Texture2D t = LoadTextureFromImage(img);
+    DrawTexture(t, col * img.width, row * img.height, step->highlights[i]);
+  }
+}
+
 int main(void) {
   Image src_img = (color_gradient_image(DARKBLUE, RED));
   CellMat *mat = create_cell_mat(src_img, ROWS, COLS);
+  SortStep *step = create_sort_step(ROWS * COLS);
   InitWindow(WIDTH, HEIGHT, "Hello Raylib!");
   SetTargetFPS(FPS);
-  SetTraceLogLevel(LOG_WARNING);
+  SetTraceLogLevel(LOG_ALL);
   while (!WindowShouldClose()) {
     BeginDrawing();
     ClearBackground(WHITE);
-    render_cell_mat(mat);
+    render_cell_mat(mat, step);
+    bubble_sort_step(step);
     EndDrawing();
   }
   free_cell_mat(mat);
+  free_sort_step(step);
   CloseWindow();
   return 0;
 }
