@@ -3,12 +3,13 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 
-#define WIDTH 400
-#define HEIGHT 400
-#define ROWS 40
-#define COLS 40
-#define RADIUS 5
+#define WIDTH 512
+#define HEIGHT 341
+#define ROWS 10
+#define COLS 10
+#define CELL_COUNT ROWS * COLS
 #define FPS 60
 #define ACTIVE_COLOR MAGENTA
 #define SWAP_COLOR DARKGREEN
@@ -46,24 +47,18 @@ void shuffle_fy(int *ns, int ns_size) {
 }
 
 typedef struct CellMat {
-  Texture *texs;
-  int count;
+  Texture texs[CELL_COUNT];
   int rows;
   int cols;
   int width;
   int height;
 } CellMat;
 
-CellMat* create_cell_mat(Image src, int rows, int cols) {
+CellMat create_cell_mat(Image src, int rows, int cols) {
   int cell_width = (int) (src.width / cols);
   int cell_height = (int) (src.height/ rows);
   int cell_count = rows * cols;
-  Texture *texs = malloc(cell_count * sizeof(Texture));
-  if (!texs) {
-    printf("Couldn't allocate memory for textures");
-    return NULL;
-  }
-
+  CellMat mat = {0};
   for (int i = 0; i < cell_count; ++i) {
     int row = i / cols;
     int col = i % cols;
@@ -73,20 +68,12 @@ CellMat* create_cell_mat(Image src, int rows, int cols) {
       .width = (float) cell_width,
       .height = (float) cell_height,
     };
-    texs[i] = LoadTextureFromImage(ImageFromImage(src, cell_bounds));
+    mat.texs[i] = LoadTextureFromImage(ImageFromImage(src, cell_bounds));
   }
-
-  CellMat *mat = malloc(sizeof(CellMat));
-  if (!mat) {
-    printf("Couldn't allocate memory for CelMat");
-    return NULL;
-  }
-  mat->texs = texs;
-  mat->count = cell_count;
-  mat->rows = rows;
-  mat->cols = cols;
-  mat->width = cell_width;
-  mat->height = cell_height;
+  mat.rows = rows;
+  mat.cols = cols;
+  mat.width = cell_width;
+  mat.height = cell_height;
   return mat;
 }
 
@@ -103,12 +90,12 @@ void dump_array(int *ns, int ns_size) {
 }
 
 typedef struct SortStep {
-  int *ns;
+  int ns[CELL_COUNT];
   int count;
   int is_sorted;
   int active_index;
   int updated;
-  Color *highlights;
+  Color highlights[CELL_COUNT];
 } SortStep;
 
 void reset_colors(Color *colors, int color_count, Color color) {
@@ -117,26 +104,16 @@ void reset_colors(Color *colors, int color_count, Color color) {
   }
 }
 
-SortStep* create_sort_step(int count) {
-  int *order = malloc(count * sizeof(int));
-  for (int i = 0; i < count; ++i) order[i] = i;
-  shuffle_fy(order, count);
-  Color *highlights = malloc(count * sizeof(Color));
-  reset_colors(highlights, count, WHITE);
-  SortStep *step = malloc(sizeof(SortStep));
-  step->ns = order;
-  step->count = count;
-  step->is_sorted = false;
-  step->active_index = 0;
-  step->updated = false;
-  step->highlights = highlights;
+SortStep make_sort_step(int count) {
+  SortStep step = {0};
+  for (int i = 0; i < count; ++i) step.ns[i] = i;
+  shuffle_fy(step.ns, count);
+  reset_colors(step.highlights, count, WHITE);
+  step.count = count;
+  step.is_sorted = false;
+  step.active_index = 0;
+  step.updated = false;
   return step;
-}
-
-void free_sort_step(SortStep *step) {
-  free(step->highlights);
-  free(step->ns);
-  free(step);
 }
 
 void bubble_sort_step(SortStep *step) {
@@ -171,7 +148,7 @@ void bubble_sort_step(SortStep *step) {
 }
 
 void render_cell_mat(CellMat *mat, SortStep *step) {
-  for (int i = 0; i < mat->count; ++i) {
+  for (int i = 0; i < CELL_COUNT; ++i) {
     Texture t = mat->texs[step->ns[i]];
     int row = i / mat->rows;
     int col = i % mat->cols;
@@ -181,20 +158,18 @@ void render_cell_mat(CellMat *mat, SortStep *step) {
 
 int main(void) {
   InitWindow(WIDTH, HEIGHT, "Bubble Sort!");
-  Image src_img = (color_gradient_image(DARKBLUE, RED));
-  CellMat *mat = create_cell_mat(src_img, ROWS, COLS);
-  SortStep *step = create_sort_step(ROWS * COLS);
+  Image src_img = LoadImage("./images/squirrel.jpg");
+  CellMat mat = create_cell_mat(src_img, ROWS, COLS);
+  SortStep step = make_sort_step(ROWS * COLS);
   SetTargetFPS(FPS);
-  SetTraceLogLevel(LOG_ALL);
+  SetTraceLogLevel(LOG_WARNING);
   while (!WindowShouldClose()) {
     BeginDrawing();
     ClearBackground(WHITE);
-    render_cell_mat(mat, step);
-    bubble_sort_step(step);
+    render_cell_mat(&mat, &step);
+    bubble_sort_step(&step);
     EndDrawing();
   }
   CloseWindow();
-  free_cell_mat(mat);
-  free_sort_step(step);
   return 0;
 }
