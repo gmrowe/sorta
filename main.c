@@ -3,7 +3,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <string.h>
 
 #define WIDTH 512
 #define HEIGHT 341
@@ -96,6 +95,7 @@ typedef struct SortStep {
   int active_index;
   int updated;
   Color highlights[CELL_COUNT];
+  int full_iterations;
 } SortStep;
 
 void reset_colors(Color *colors, int color_count, Color color) {
@@ -113,6 +113,7 @@ SortStep make_sort_step(int count) {
   step.is_sorted = false;
   step.active_index = 0;
   step.updated = false;
+  step.full_iterations = 0;
   return step;
 }
 
@@ -125,10 +126,11 @@ void bubble_sort_step(SortStep *step) {
   step->highlights[idx] = ACTIVE_COLOR;
 
   // End of array behavior
-  if (idx == step->count - 1) {
+  if (idx == (step->count - step->full_iterations - 1)) {
     if (step->updated) {
       step->active_index = 0;
       step->updated = false;
+      step->full_iterations += 1;
     } else {
       step->is_sorted = true;
     }
