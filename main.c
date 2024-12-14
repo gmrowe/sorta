@@ -3,38 +3,18 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <assert.h>
 
-#define WIDTH 512
-#define HEIGHT 341
-#define ROWS 10
-#define COLS 10
+#define WIDTH 400
+#define HEIGHT 400
+#define ROWS 12
+#define COLS 12
+#define CELL_WIDTH WIDTH / COLS
+#define CELL_HEIGHT HEIGHT / ROWS
 #define CELL_COUNT ROWS * COLS
 #define FPS 60
 #define ACTIVE_COLOR MAGENTA
 #define SWAP_COLOR DARKGREEN
-
-Image color_gradient_image(Color a, Color b) {
-  uint32_t init[WIDTH * HEIGHT] = {0};
-  Image image = {
-    .data = init,
-    .width = WIDTH,
-    .height = HEIGHT,
-    .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8,
-    .mipmaps = 1
-  };
-
-  for (int y = 0; y < HEIGHT; ++y) {
-    for (int x = 0; x < WIDTH; ++x) {
-      Color color;
-      float t = (float) y / HEIGHT;
-      color.r = (a.r * (1.0 - t)) + (b.r * t);
-      color.g = (a.g * (1.0 - t)) + (b.g * t);
-      color.b = (a.b * (1.0 - t)) + (b.b * t);
-      ImageDrawPixel(&image,x, y, color);
-    }
-  }
-  return image;
-}
 
 void shuffle_fy(int *ns, int ns_size) {
   for (int i = ns_size - 1; i > 0; --i) {
@@ -45,19 +25,25 @@ void shuffle_fy(int *ns, int ns_size) {
   }
 }
 
-typedef struct CellMat {
+void swap(int *xs, int i, int j) {
+  int temp = xs[i];
+  xs[i] =  xs[j];
+  xs[j] = temp;
+}
+
+typedef struct CellMatrix {
   Texture texs[CELL_COUNT];
   int rows;
   int cols;
   int width;
   int height;
-} CellMat;
+} CellMatrix;
 
-CellMat create_cell_mat(Image src, int rows, int cols) {
+CellMatrix create_cell_mat(Image src, int rows, int cols) {
   int cell_width = (int) (src.width / cols);
   int cell_height = (int) (src.height/ rows);
   int cell_count = rows * cols;
-  CellMat mat = {0};
+  CellMatrix mat = {0};
   for (int i = 0; i < cell_count; ++i) {
     int row = i / cols;
     int col = i % cols;
@@ -76,7 +62,7 @@ CellMat create_cell_mat(Image src, int rows, int cols) {
   return mat;
 }
 
-void free_cell_mat(CellMat *mat) {
+void free_cell_mat(CellMatrix *mat) {
   free(mat->texs);
   free(mat);
 }
@@ -88,7 +74,7 @@ void dump_array(int *ns, int ns_size) {
   }
 }
 
-typedef struct SortStep {
+typedef struct BubbleSortState {
   int ns[CELL_COUNT];
   int count;
   int is_sorted;
@@ -96,7 +82,7 @@ typedef struct SortStep {
   int updated;
   Color highlights[CELL_COUNT];
   int full_iterations;
-} SortStep;
+} BubbleSortState;
 
 void reset_colors(Color *colors, int color_count, Color color) {
   for (int i = 0; i < color_count; i++) {
@@ -104,12 +90,12 @@ void reset_colors(Color *colors, int color_count, Color color) {
   }
 }
 
-SortStep make_sort_step(int count) {
-  SortStep step = {0};
-  for (int i = 0; i < count; ++i) step.ns[i] = i;
-  shuffle_fy(step.ns, count);
-  reset_colors(step.highlights, count, WHITE);
-  step.count = count;
+BubbleSortState create_bubble_sort_state(void) {
+  BubbleSortState step = {0};
+  for (int i = 0; i < CELL_COUNT; ++i) step.ns[i] = i;
+  shuffle_fy(step.ns, CELL_COUNT);
+  reset_colors(step.highlights, CELL_COUNT, WHITE);
+  step.count = CELL_COUNT;
   step.is_sorted = false;
   step.active_index = 0;
   step.updated = false;
@@ -117,7 +103,7 @@ SortStep make_sort_step(int count) {
   return step;
 }
 
-void bubble_sort_step(SortStep *step) {
+void bubble_sort_step(BubbleSortState *step) {
   reset_colors(step->highlights, step->count, WHITE);
   if (step->is_sorted) {
     return;
@@ -137,11 +123,9 @@ void bubble_sort_step(SortStep *step) {
     return;
   }
 
-  // Check wheter current element is out of order
+  // Check whether current element is out of order
   if (step->ns[idx] > step->ns[idx + 1]) {
-    int temp = step->ns[idx];
-    step->ns[idx] = step->ns[idx + 1];
-    step->ns[idx + 1] = temp;
+    swap(step->ns, idx, idx + 1);
     step->updated = true;
     step->highlights[idx] = SWAP_COLOR;
     step->highlights[idx + 1] = SWAP_COLOR;
@@ -149,7 +133,7 @@ void bubble_sort_step(SortStep *step) {
   step->active_index = idx + 1;
 }
 
-void render_cell_mat(CellMat *mat, SortStep *step) {
+void render_bubble_sort_state(CellMatrix *mat, BubbleSortState *step) {
   for (int i = 0; i < CELL_COUNT; ++i) {
     Texture t = mat->texs[step->ns[i]];
     int row = i / mat->rows;
@@ -158,20 +142,91 @@ void render_cell_mat(CellMat *mat, SortStep *step) {
   }
 }
 
+typedef struct {
+  int xs[CELL_COUNT];
+  int i;
+  int j;
+  int count;
+  bool done;
+  Color highlights[CELL_COUNT];
+} InsertionSortState;
+
+InsertionSortState create_insertion_sort_state() {
+  InsertionSortState state;
+  state.i = 1;
+  state.j = 1;
+  state.count = CELL_COUNT;
+  state.done = false;
+  for (int i = 0; i < CELL_COUNT; i++) state.xs[i] = i;
+  shuffle_fy(state.xs, CELL_COUNT);
+  reset_colors(state.highlights, CELL_COUNT, WHITE);
+  return state;
+}
+
+void insertion_sort_step(InsertionSortState* state) {
+  reset_colors(state->highlights, state->count, WHITE);
+  if (state->done) {
+    return;
+  }
+
+  if (state->i >= state->count) {
+    state->done = true;
+    return;
+  }
+
+  int j = state->j;
+  if (j > 0 && state->xs[j - 1] > state->xs[j]) {
+    swap(state->xs, j, j - 1);
+    state->j -= 1;
+    state->highlights[j] = SWAP_COLOR;
+    state->highlights[j - 1] = SWAP_COLOR;
+  } else {
+    state->i += 1;
+    state->j = state->i;
+  }
+}
+
+void render_insertion_sort_state(CellMatrix *mat, const InsertionSortState *step) {
+  for (int i = 0; i < CELL_COUNT; ++i) {
+    Texture t = mat->texs[step->xs[i]];
+    int row = i / mat->rows;
+    int col = i % mat->cols;
+    DrawTexture(t, col * mat->width, row * mat->height, step->highlights[i]);
+  }
+}
+
 int main(void) {
-  InitWindow(WIDTH, HEIGHT, "Bubble Sort!");
-  Image src_img = LoadImage("./images/squirrel.jpg");
-  CellMat mat = create_cell_mat(src_img, ROWS, COLS);
-  SortStep step = make_sort_step(ROWS * COLS);
+  InitWindow(WIDTH, HEIGHT, "Insertion Sort!");
+  Image src_img = GenImageGradientLinear(WIDTH, HEIGHT, 5, DARKPURPLE, ORANGE);
+  CellMatrix mat = create_cell_mat(src_img, ROWS, COLS);
+  InsertionSortState state = create_insertion_sort_state();
   SetTargetFPS(FPS);
   SetTraceLogLevel(LOG_WARNING);
   while (!WindowShouldClose()) {
     BeginDrawing();
     ClearBackground(WHITE);
-    render_cell_mat(&mat, &step);
-    bubble_sort_step(&step);
+    render_insertion_sort_state(&mat, &state);
+    insertion_sort_step(&state);
     EndDrawing();
   }
   CloseWindow();
-  return 0;
+  return EXIT_SUCCESS;
+}
+
+int main2(void) {
+  InitWindow(WIDTH, HEIGHT, "Bubble Sort!");
+  Image src_img = GenImageGradientLinear(WIDTH, HEIGHT, 5, DARKPURPLE, ORANGE);
+  CellMatrix mat = create_cell_mat(src_img, ROWS, COLS);
+  SetTargetFPS(FPS);
+  SetTraceLogLevel(LOG_WARNING);
+  BubbleSortState state = create_bubble_sort_state();
+  while (!WindowShouldClose()) {
+    BeginDrawing();
+    ClearBackground(WHITE);
+    render_bubble_sort_state(&mat, &state);
+    bubble_sort_step(&state);
+    EndDrawing();
+  }
+  CloseWindow();
+  return EXIT_SUCCESS;
 }
